@@ -14,28 +14,26 @@ on:
       DEVICE_TREE:
         description: 'Custom Recovery Tree'
         required: true
-        default: 'https://github.com/<username>/<repo_name>'
+        default: 'https://github.com/SPEEDFIRE7/android_recovery_oppo_CPH2185'
       DEVICE_TREE_BRANCH:
         description: 'Custom Recovery Tree Branch (use master if default)'
         required: true
-        default: 'your_branch_name'
+        default: 'OFOX'
       DEVICE_NAME:
         description: 'Specify your Device Codename' # As is, just like your PRODUCT_DEVICE in your device tree.
         required: true
-        default: '7304X'
+        default: 'CPH2185'
       DEVICE_PATH:
         description: 'Specify your Device Path (Check the DEVICE_PATH in BoardConfig.mk)' # As is, just like your DEVICE_PATH in your BoardConfig.mk
         required: true
-        default: 'device/device`s_company/Codename'
+        default: 'device/oppo/CPH2185'
       BUILD_TARGET:
         description: 'Specify your Build Target' # The image suffix will be added later in build step.
         required: true
         default: 'recovery'
         type: choice
         options:
-        - boot
         - recovery
-        - vendorboot
       LDCHECK:
         description: 'Use LDCHECK'
         required: false
@@ -105,6 +103,9 @@ jobs:
         # Android/OrangeFox envsetup scripts rely on unset shell variables.
         # Do not enable nounset (-u) while sourcing or running the build system.
         set -eo pipefail
+        # Explicitly keep nounset disabled: Android/OrangeFox envsetup and lunch
+        # intentionally read variables before they are initialized.
+        set +u
         pushd "${{ env.ORANGEFOX_ROOT }}"
         export USE_CCACHE=1
         export CCACHE_EXEC=/usr/bin/ccache
@@ -114,9 +115,11 @@ jobs:
         sed -i 's/return sandboxConfig\.working/return false/g' build/soong/ui/build/sandbox_linux.go
 
         set +e
+        set +u
         source build/envsetup.sh
         ENVSETUP_STATUS=$?
         set -e
+        set +u
         echo "envsetup.sh exit status: ${ENVSETUP_STATUS}"
         if ! declare -F lunch >/dev/null 2>&1; then
           echo "::error::build/envsetup.sh did not define the lunch function"
@@ -131,6 +134,7 @@ jobs:
         lunch "twrp_${{ inputs.DEVICE_NAME }}-eng"
         LUNCH_STATUS=$?
         set -e
+        set +u
         echo "lunch exit status: ${LUNCH_STATUS}"
         if [ "$LUNCH_STATUS" -ne 0 ]; then
           echo "::error::lunch failed for twrp_${{ inputs.DEVICE_NAME }}-eng"
