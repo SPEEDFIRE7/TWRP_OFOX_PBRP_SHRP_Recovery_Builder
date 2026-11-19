@@ -100,19 +100,42 @@ jobs:
         echo "COMMIT_ID=$(git rev-parse HEAD)" >> $GITHUB_ENV
 
     - name: Building OrangeFox
+      shell: bash
       run: |
-        pushd ${{ env.ORANGEFOX_ROOT }}
+        set -Eeuo pipefail
+        pushd "${{ env.ORANGEFOX_ROOT }}"
         export USE_CCACHE=1
         export CCACHE_EXEC=/usr/bin/ccache
-        sed -i 's/return sandboxConfig\.working/return false/g' build/soong/ui/build/sandbox_linux.go
-        source build/envsetup.sh
         export ALLOW_MISSING_DEPENDENCIES=true
+
+        # Patch the host sandbox check used by this OrangeFox build environment.
+        sed -i 's/return sandboxConfig\\.working/return false/g' build/soong/ui/build/sandbox_linux.go
+
+        # Some envsetup versions return non-zero despite loading the build functions.
+        set +e
+        source build/envsetup.sh
+        ENVSETUP_STATUS=$?
+        set -e
+        echo "envsetup.sh exit status: ${ENVSETUP_STATUS}"
+        if ! declare -F lunch >/dev/null 2>&1; then
+          echo "::error::build/envsetup.sh did not define the lunch function"
+          exit 1
+        fi
 
         BUILD_OUTPUT_TARGET="${{ inputs.BUILD_TARGET }}"
         echo "Building requested target: ${BUILD_OUTPUT_TARGET}image"
-        echo "BUILD_OUTPUT_TARGET=$BUILD_OUTPUT_TARGET" >> "$GITHUB_ENV"
+        echo "BUILD_OUTPUT_TARGET=${BUILD_OUTPUT_TARGET}" >> "$GITHUB_ENV"
 
-        lunch twrp_${{ inputs.DEVICE_NAME }}-eng
+        set +e
+        lunch "twrp_${{ inputs.DEVICE_NAME }}-eng"
+        LUNCH_STATUS=$?
+        set -e
+        echo "lunch exit status: ${LUNCH_STATUS}"
+        if [ "$LUNCH_STATUS" -ne 0 ]; then
+          echo "::error::lunch failed for twrp_${{ inputs.DEVICE_NAME }}-eng"
+          exit "$LUNCH_STATUS"
+        fi
+
         make clean
         mka adbd "${BUILD_OUTPUT_TARGET}image"
         popd
