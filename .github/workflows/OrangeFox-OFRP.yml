@@ -102,44 +102,74 @@ jobs:
     - name: Building OrangeFox
       run: |
         pushd ${{ env.ORANGEFOX_ROOT }}
-        set +e
         export USE_CCACHE=1
         export CCACHE_EXEC=/usr/bin/ccache
         sed -i 's/return sandboxConfig\.working/return false/g' build/soong/ui/build/sandbox_linux.go
         source build/envsetup.sh
         export ALLOW_MISSING_DEPENDENCIES=true
-        set -e
-        lunch twrp_${{ inputs.DEVICE_NAME }}-eng && make clean && mka adbd ${{ inputs.BUILD_TARGET }}image
+
+        DEVICE_CONFIG="${{ env.ORANGEFOX_ROOT }}/${{ inputs.DEVICE_PATH }}/BoardConfig.mk"
+        BUILD_OUTPUT_TARGET="${{ inputs.BUILD_TARGET }}"
+        if grep -Eq '^[[:space:]]*BOARD_USES_RECOVERY_AS_BOOT[[:space:]]*:?=[[:space:]]*true' "$DEVICE_CONFIG"; then
+          echo "Recovery-as-boot detected: building bootimage instead of recoveryimage."
+          BUILD_OUTPUT_TARGET="boot"
+        fi
+        echo "BUILD_OUTPUT_TARGET=$BUILD_OUTPUT_TARGET" >> "$GITHUB_ENV"
+
+        lunch twrp_${{ inputs.DEVICE_NAME }}-eng
+        make clean
+        mka adbd "${BUILD_OUTPUT_TARGET}image"
         popd
 
     - name: Set Build Date # Build date in UTC
       run: |
         echo "BUILD_DATE=$(TZ=UTC date +%Y%m%d)" >> $GITHUB_ENV
 
-    - name: Check if the recovery exists # It makes the recovery.img and renames it to Orangefox*.img but the OG should also work
+    - name: Check if the recovery image exists
       if: always()
       run: |
-        img_file=$(find "${{ env.OUTPUT_DIR }}" -name "${{ inputs.BUILD_TARGET }}*.img" -print -quit)
-        zip_file=$(find "${{ env.OUTPUT_DIR }}" -name "OrangeFox*.zip" -print -quit)
+        set -e
+        img_file="${{ env.OUTPUT_DIR }}/${{ env.BUILD_OUTPUT_TARGET }}.img"
+        zip_file=$(find "${{ env.OUTPUT_DIR }}" -maxdepth 1 -type f -name "OrangeFox*.zip" -print -quit)
+
         if [ -f "$img_file" ]; then
-            echo "CHECK_IMG_IS_OK=true" >> $GITHUB_ENV
-            echo "MD5_IMG=$(md5sum "$img_file" | cut -d ' ' -f 1)" >> $GITHUB_ENV
+            output_img="${{ env.OUTPUT_DIR }}/OrangeFox-${{ inputs.DEVICE_NAME }}-${{ env.BUILD_DATE }}.img"
+            cp -f "$img_file" "$output_img"
+            echo "OUTPUT_IMAGE_NAME=OrangeFox-${{ inputs.DEVICE_NAME }}-${{ env.BUILD_DATE }}.img" >> "$GITHUB_ENV"
+            echo "CHECK_IMG_IS_OK=true" >> "$GITHUB_ENV"
+            echo "MD5_IMG=$(md5sum "$output_img" | cut -d ' ' -f 1)" >> "$GITHUB_ENV"
+            ls -lh "$output_img"
         else
-            echo "Recovery out directory is empty."
+            echo "::error::Expected image not found: $img_file"
+            echo "Output directory contents:"
+            find "${{ env.OUTPUT_DIR }}" -maxdepth 2 -type f -printf '%p (%s bytes)\\n' | head -100
+            exit 1
         fi
+
         if [ -f "$zip_file" ]; then
-            echo "CHECK_ZIP_IS_OK=true" >> $GITHUB_ENV
-            echo "MD5_ZIP=$(md5sum "$zip_file" | cut -d ' ' -f 1)" >> $GITHUB_ENV
+            echo "CHECK_ZIP_IS_OK=true" >> "$GITHUB_ENV"
+            echo "MD5_ZIP=$(md5sum "$zip_file" | cut -d ' ' -f 1)" >> "$GITHUB_ENV"
         else
-            echo "::warning::The zip file isn't present but make sure the image is from only after 100% completion in build stage"
+            echo "::warning::OrangeFox installer ZIP was not generated; the boot/recovery image will still be uploaded."
         fi
+
+    - name: Upload recovery image artifact
+      if: always() && env.CHECK_IMG_IS_OK == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: OrangeFox-${{ inputs.DEVICE_NAME }}-${{ env.BUILD_DATE }}
+        path: |
+          ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT_IMAGE_NAME }}
+          ${{ env.OUTPUT_DIR }}/OrangeFox*.zip
+        if-no-files-found: error
+        retention-days: 14
 
     - name: Upload to Release
       if: env.CHECK_IMG_IS_OK == 'true'
       uses: softprops/action-gh-release@master
       with:
         files: |
-          ${{ env.OUTPUT_DIR }}/OrangeFox*.img
+          ${{ env.OUTPUT_DIR }}/${{ env.OUTPUT_IMAGE_NAME }}
           ${{ env.OUTPUT_DIR }}/OrangeFox*.tar
           ${{ env.OUTPUT_DIR }}/OrangeFox*.zip
           ${{ env.OUTPUT_DIR }}/ramdisk-recovery.*
