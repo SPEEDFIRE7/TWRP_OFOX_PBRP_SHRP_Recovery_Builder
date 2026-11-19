@@ -102,16 +102,17 @@ jobs:
     - name: Building OrangeFox
       shell: bash
       run: |
-        set -Eeuo pipefail
+        # Android/OrangeFox envsetup scripts rely on unset shell variables.
+        # Do not enable nounset (-u) while sourcing or running the build system.
+        set -eo pipefail
         pushd "${{ env.ORANGEFOX_ROOT }}"
         export USE_CCACHE=1
         export CCACHE_EXEC=/usr/bin/ccache
         export ALLOW_MISSING_DEPENDENCIES=true
 
-        # Patch the host sandbox check used by this OrangeFox build environment.
-        sed -i 's/return sandboxConfig\\.working/return false/g' build/soong/ui/build/sandbox_linux.go
+        # Disable Soong's Linux sandbox check on the hosted runner.
+        sed -i 's/return sandboxConfig\.working/return false/g' build/soong/ui/build/sandbox_linux.go
 
-        # Some envsetup versions return non-zero despite loading the build functions.
         set +e
         source build/envsetup.sh
         ENVSETUP_STATUS=$?
@@ -148,7 +149,7 @@ jobs:
       if: always()
       run: |
         set -e
-        img_file="${{ env.OUTPUT_DIR }}/${{ env.BUILD_OUTPUT_TARGET }}.img"
+        img_file="${{ env.OUTPUT_DIR }}/${{ inputs.BUILD_TARGET }}.img"
         zip_file=$(find "${{ env.OUTPUT_DIR }}" -maxdepth 1 -type f -name "OrangeFox*.zip" -print -quit)
 
         if [ -f "$img_file" ]; then
