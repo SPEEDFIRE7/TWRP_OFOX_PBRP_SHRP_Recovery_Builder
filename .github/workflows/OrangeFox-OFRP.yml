@@ -108,12 +108,8 @@ jobs:
         source build/envsetup.sh
         export ALLOW_MISSING_DEPENDENCIES=true
 
-        DEVICE_CONFIG="${{ env.ORANGEFOX_ROOT }}/${{ inputs.DEVICE_PATH }}/BoardConfig.mk"
         BUILD_OUTPUT_TARGET="${{ inputs.BUILD_TARGET }}"
-        if grep -Eq '^[[:space:]]*BOARD_USES_RECOVERY_AS_BOOT[[:space:]]*:?=[[:space:]]*true' "$DEVICE_CONFIG"; then
-          echo "Recovery-as-boot detected: building bootimage instead of recoveryimage."
-          BUILD_OUTPUT_TARGET="boot"
-        fi
+        echo "Building requested target: ${BUILD_OUTPUT_TARGET}image"
         echo "BUILD_OUTPUT_TARGET=$BUILD_OUTPUT_TARGET" >> "$GITHUB_ENV"
 
         lunch twrp_${{ inputs.DEVICE_NAME }}-eng
