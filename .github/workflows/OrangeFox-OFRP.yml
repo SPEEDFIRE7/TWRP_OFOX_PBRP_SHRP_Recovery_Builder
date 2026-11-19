@@ -146,7 +146,7 @@ jobs:
         echo "BUILD_DATE=$(TZ=UTC date +%Y%m%d)" >> $GITHUB_ENV
 
     - name: Check if the recovery image exists
-      if: always()
+      if: success()
       run: |
         set -e
         img_file="${{ env.OUTPUT_DIR }}/${{ inputs.BUILD_TARGET }}.img"
