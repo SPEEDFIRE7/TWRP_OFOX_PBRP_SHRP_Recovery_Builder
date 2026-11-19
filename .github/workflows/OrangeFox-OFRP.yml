@@ -162,7 +162,7 @@ jobs:
         path = pathlib.Path(sys.argv[1])
         data = path.read_text()
         old = "rsync -a --exclude=sdcard "
-        new = "rsync -a --exclude=sdcard --exclude=/vendor "
+        new = "rsync -a --exclude=sdcard --exclude=/root/vendor "
         if new in data:
             print("OFRP /vendor rsync exclusion already present")
         elif data.count(old) == 1:
@@ -171,7 +171,7 @@ jobs:
         else:
             raise SystemExit("Expected exactly one recovery rsync command; refusing unsafe patch")
         PY
-        grep -nF 'rsync -a --exclude=sdcard --exclude=/vendor' "$MAKEFILE"
+        grep -nF 'rsync -a --exclude=sdcard --exclude=/root/vendor' "$MAKEFILE"
 
         make clean
         mka adbd "${BUILD_OUTPUT_TARGET}image"
