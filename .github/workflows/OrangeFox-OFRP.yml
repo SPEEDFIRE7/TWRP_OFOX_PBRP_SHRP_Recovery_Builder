@@ -96,6 +96,17 @@ jobs:
         git clone ${{ inputs.DEVICE_TREE }} -b ${{ inputs.DEVICE_TREE_BRANCH }} ./${{ inputs.DEVICE_PATH }}
         cd ${{ inputs.DEVICE_PATH }}
         echo "COMMIT_ID=$(git rev-parse HEAD)" >> $GITHUB_ENV
+        # OFRP-only safeguard: remove the legacy duplicate build-date property
+        # from this device tree before generating Android product properties.
+        if grep -RIl --include='*.mk' 'ro.build.date.utc=1230768000' .; then
+          grep -RIl --include='*.mk' 'ro.build.date.utc=1230768000' . | while IFS= read -r file; do
+            sed -i '/ro\.build\.date\.utc[[:space:]]*=[[:space:]]*1230768000/d' "$file"
+          done
+        fi
+        if grep -RIn --include='*.mk' 'ro.build.date.utc=1230768000' .; then
+          echo "::error::Legacy duplicate ro.build.date.utc assignment remains in OFRP device tree"
+          exit 1
+        fi
 
     - name: Building OrangeFox
       shell: bash
