@@ -152,6 +152,27 @@ jobs:
           exit "$LUNCH_STATUS"
         fi
 
+        # OFRP-only fix: the generic rootfs contains /vendor as a symlink to
+        # /system/vendor, while recovery modules are installed into the real
+        # recovery/root/vendor directory. Exclude only the source root symlink
+        # during the root-to-recovery rsync so it cannot replace that directory.
+        MAKEFILE="build/make/core/Makefile"
+        python3 - "$MAKEFILE" <<'PY'
+        import pathlib, sys
+        path = pathlib.Path(sys.argv[1])
+        data = path.read_text()
+        old = "rsync -a --exclude=sdcard "
+        new = "rsync -a --exclude=sdcard --exclude=/vendor "
+        if new in data:
+            print("OFRP /vendor rsync exclusion already present")
+        elif data.count(old) == 1:
+            path.write_text(data.replace(old, new, 1))
+            print("Added OFRP recovery-root /vendor rsync exclusion")
+        else:
+            raise SystemExit("Expected exactly one recovery rsync command; refusing unsafe patch")
+        PY
+        grep -nF 'rsync -a --exclude=sdcard --exclude=/vendor' "$MAKEFILE"
+
         make clean
         mka adbd "${BUILD_OUTPUT_TARGET}image"
         popd
