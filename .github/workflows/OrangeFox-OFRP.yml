@@ -18,7 +18,7 @@ on:
       DEVICE_TREE_BRANCH:
         description: 'Custom Recovery Tree Branch (use master if default)'
         required: true
-        default: 'twrp-12.1'
+        default: 'flashlightd-integration'
       DEVICE_NAME:
         description: 'Specify your Device Codename' # As is, just like your PRODUCT_DEVICE in your device tree.
         required: true
@@ -105,6 +105,61 @@ jobs:
         grep -q 'OF_MAINTAINER="SPEEDFIRE"' vendorsetup.sh
         grep -q 'FOX_VARIANT="CPH2185"' vendorsetup.sh
         echo "Installed OrangeFox vendorsetup.sh from fox_12.1"
+
+    - name: Integrate CPH2185 flashlight daemon and GUI action
+      shell: bash
+      run: |
+        set -euo pipefail
+        DEVICE_ROOT="${ORANGEFOX_ROOT}/${{ inputs.DEVICE_PATH }}"
+        DAEMON_B64="${DEVICE_ROOT}/prebuilt/flashlightd-CPH2185-fixed.gz.b64"
+        test -s "$DAEMON_B64"
+        mkdir -p "$DEVICE_ROOT/recovery/root/system/bin"
+        base64 -d "$DAEMON_B64" | gzip -dc > "$DEVICE_ROOT/recovery/root/system/bin/flashlightd"
+        chmod 0755 "$DEVICE_ROOT/recovery/root/system/bin/flashlightd"
+        file "$DEVICE_ROOT/recovery/root/system/bin/flashlightd"
+        grep -q 'service flashlightd /system/bin/flashlightd daemon' "$DEVICE_ROOT/recovery/root/init.recovery.mt6765.rc"
+        grep -q '^/dev/flashlight ' "$DEVICE_ROOT/recovery/root/ueventd.mt6765.rc"
+
+        ACTION_CPP="${ORANGEFOX_ROOT}/bootable/recovery/gui/action.cpp"
+        test -f "$ACTION_CPP"
+        python3 - "$ACTION_CPP" <<'PY'
+        import pathlib, re, sys
+        path = pathlib.Path(sys.argv[1])
+        data = path.read_text()
+        pattern = re.compile(
+            r'int GUIAction::flashlight\(std::string arg __unused\)\s*\{.*?\n\}',
+            re.S
+        )
+        replacement = r'''int GUIAction::flashlight(std::string arg __unused)
+        {
+          string enable_flash;
+          DataManager::GetValue(OF_FLASHLIGHT_ENABLE_STR, enable_flash);
+          if (enable_flash != "1")
+            return 0;
+
+          string fl_used;
+          DataManager::GetValue("of_flash_on", fl_used);
+          const bool turn_off = (fl_used == "1");
+          const char* command = turn_off
+              ? "/system/bin/flashlightd off"
+              : "/system/bin/flashlightd on";
+
+          const int status = TWFunc::Exec_Cmd(command);
+          if (status == 0) {
+            DataManager::SetValue("of_flash_on", turn_off ? "0" : "1");
+          } else {
+            gui_print_color("warning", "CPH2185 flashlight command failed!\\n");
+          }
+          return 0;
+        }'''
+        data2, count = pattern.subn(lambda _: replacement, data, count=1)
+        if count != 1:
+            raise SystemExit(f"Expected one GUIAction::flashlight() body; found {count}")
+        if "flashlightd on" not in data2 or "flashlightd off" not in data2:
+            raise SystemExit("flashlightd command integration verification failed")
+        path.write_text(data2)
+        print(f"Patched {path}: GUI flashlight now controls flashlightd")
+        PY
         # OFRP-only safeguard: remove the legacy duplicate build-date property
         # from this device tree before generating Android product properties.
         if grep -RIl --include='*.mk' 'ro.build.date.utc=1230768000' .; then
