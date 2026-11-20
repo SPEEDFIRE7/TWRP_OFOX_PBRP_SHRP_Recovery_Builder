@@ -139,7 +139,7 @@ jobs:
         path = pathlib.Path(sys.argv[1])
         data = path.read_text()
         # Match the method by balanced braces; OFRP indents the final brace.
-        signature = re.search(r'\\bint\\s+GUIAction::flashlight\\s*\\(', data)
+        signature = re.search(r'\bint\s+GUIAction::flashlight\s*\(', data)
         if not signature:
             raise SystemExit("GUIAction::flashlight() signature not found")
         opening = data.find("{", signature.end())
@@ -175,7 +175,7 @@ jobs:
           if (status == 0) {
             DataManager::SetValue("of_flash_on", turn_off ? "0" : "1");
           } else {
-            gui_print_color("warning", "CPH2185 flashlight command failed!\\n");
+            gui_print_color("warning", "CPH2185 flashlight command failed!\n");
           }
           return 0;
         }'''
