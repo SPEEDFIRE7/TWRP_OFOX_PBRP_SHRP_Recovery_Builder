@@ -140,7 +140,7 @@ jobs:
         data = path.read_text()
         # Accept OrangeFox source variants that differ in the unused-argument annotation.
         pattern = re.compile(
-            r'int\\s+GUIAction::flashlight\\s*\\([^)]*\\)\\s*\\{.*?\\n\\}',
+            r'int\s+GUIAction::flashlight\s*\([^)]*\)\s*\{.*?\n\}',
             re.S
         )
         replacement = r'''int GUIAction::flashlight(std::string arg __unused)
