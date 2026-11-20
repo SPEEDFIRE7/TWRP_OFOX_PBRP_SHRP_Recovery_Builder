@@ -106,6 +106,18 @@ jobs:
         grep -q 'FOX_VARIANT="CPH2185"' vendorsetup.sh
         echo "Installed OrangeFox vendorsetup.sh from fox_12.1"
 
+        # OFRP-only safeguard: remove the legacy duplicate build-date property
+        # from this device tree before generating Android product properties.
+        if grep -RIl --include='*.mk' 'ro.build.date.utc=1230768000' .; then
+          grep -RIl --include='*.mk' 'ro.build.date.utc=1230768000' . | while IFS= read -r file; do
+            sed -i '/ro\.build\.date\.utc[[:space:]]*=[[:space:]]*1230768000/d' "$file"
+          done
+        fi
+        if grep -RIn --include='*.mk' 'ro.build.date.utc=1230768000' .; then
+          echo "::error::Legacy duplicate ro.build.date.utc assignment remains in OFRP device tree"
+          exit 1
+        fi
+
     - name: Integrate CPH2185 flashlight daemon and GUI action
       shell: bash
       run: |
@@ -148,7 +160,7 @@ jobs:
           if (status == 0) {
             DataManager::SetValue("of_flash_on", turn_off ? "0" : "1");
           } else {
-            gui_print_color("warning", "CPH2185 flashlight command failed!\\n");
+            gui_print_color("warning", "CPH2185 flashlight command failed!\n");
           }
           return 0;
         }'''
@@ -160,17 +172,6 @@ jobs:
         path.write_text(data2)
         print(f"Patched {path}: GUI flashlight now controls flashlightd")
         PY
-        # OFRP-only safeguard: remove the legacy duplicate build-date property
-        # from this device tree before generating Android product properties.
-        if grep -RIl --include='*.mk' 'ro.build.date.utc=1230768000' .; then
-          grep -RIl --include='*.mk' 'ro.build.date.utc=1230768000' . | while IFS= read -r file; do
-            sed -i '/ro\.build\.date\.utc[[:space:]]*=[[:space:]]*1230768000/d' "$file"
-          done
-        fi
-        if grep -RIn --include='*.mk' 'ro.build.date.utc=1230768000' .; then
-          echo "::error::Legacy duplicate ro.build.date.utc assignment remains in OFRP device tree"
-          exit 1
-        fi
 
     - name: Building OrangeFox
       shell: bash
