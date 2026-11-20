@@ -138,11 +138,25 @@ jobs:
         import pathlib, re, sys
         path = pathlib.Path(sys.argv[1])
         data = path.read_text()
-        # Accept OrangeFox source variants that differ in the unused-argument annotation.
-        pattern = re.compile(
-            r'int\s+GUIAction::flashlight\s*\([^)]*\)\s*\{.*?\n\}',
-            re.S
-        )
+        # Match the method by balanced braces; OFRP indents the final brace.
+        signature = re.search(r'\\bint\\s+GUIAction::flashlight\\s*\\(', data)
+        if not signature:
+            raise SystemExit("GUIAction::flashlight() signature not found")
+        opening = data.find("{", signature.end())
+        if opening < 0:
+            raise SystemExit("GUIAction::flashlight() opening brace not found")
+        depth = 0
+        closing = -1
+        for pos in range(opening, len(data)):
+            if data[pos] == "{":
+                depth += 1
+            elif data[pos] == "}":
+                depth -= 1
+                if depth == 0:
+                    closing = pos + 1
+                    break
+        if closing < 0:
+            raise SystemExit("GUIAction::flashlight() closing brace not found")
         replacement = r'''int GUIAction::flashlight(std::string arg __unused)
         {
           string enable_flash;
@@ -161,13 +175,11 @@ jobs:
           if (status == 0) {
             DataManager::SetValue("of_flash_on", turn_off ? "0" : "1");
           } else {
-            gui_print_color("warning", "CPH2185 flashlight command failed!\n");
+            gui_print_color("warning", "CPH2185 flashlight command failed!\\n");
           }
           return 0;
         }'''
-        data2, count = pattern.subn(lambda _: replacement, data, count=1)
-        if count != 1:
-            raise SystemExit(f"Expected one GUIAction::flashlight() body; found {count}")
+        data2 = data[:signature.start()] + replacement + data[closing:]
         if "flashlightd on" not in data2 or "flashlightd off" not in data2:
             raise SystemExit("flashlightd command integration verification failed")
         path.write_text(data2)
