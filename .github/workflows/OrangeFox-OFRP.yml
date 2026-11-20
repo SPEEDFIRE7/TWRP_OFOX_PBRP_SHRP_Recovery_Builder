@@ -149,9 +149,20 @@ jobs:
         # Ensure OrangeFox-specific maintainer/device settings are active.
         source "${{ inputs.DEVICE_PATH }}/vendorsetup.sh"
 
-        BUILD_OUTPUT_TARGET="${{ inputs.BUILD_TARGET }}"
-        echo "Building requested target: ${BUILD_OUTPUT_TARGET}image"
+        # This device tree declares BOARD_USES_RECOVERY_AS_BOOT=true.
+        # In that configuration Android builds the recovery ramdisk into boot.img;
+        # recoveryimage is not the correct image target.
+        if grep -Eq '^[[:space:]]*BOARD_USES_RECOVERY_AS_BOOT[[:space:]]*:?=[[:space:]]*true' "${{ inputs.DEVICE_PATH }}/BoardConfig.mk"; then
+          BUILD_OUTPUT_TARGET="boot"
+          IMAGE_OUTPUT_FILE="boot.img"
+          echo "Detected recovery-as-boot: building bootimage (boot.img)"
+        else
+          BUILD_OUTPUT_TARGET="${{ inputs.BUILD_TARGET }}"
+          IMAGE_OUTPUT_FILE="${BUILD_OUTPUT_TARGET}.img"
+          echo "Building requested target: ${BUILD_OUTPUT_TARGET}image"
+        fi
         echo "BUILD_OUTPUT_TARGET=${BUILD_OUTPUT_TARGET}" >> "$GITHUB_ENV"
+        echo "IMAGE_OUTPUT_FILE=${IMAGE_OUTPUT_FILE}" >> "$GITHUB_ENV"
 
         set +e
         lunch "twrp_${{ inputs.DEVICE_NAME }}-eng"
@@ -197,7 +208,7 @@ jobs:
       if: success()
       run: |
         set -e
-        img_file="${{ env.OUTPUT_DIR }}/${{ inputs.BUILD_TARGET }}.img"
+        img_file="${{ env.OUTPUT_DIR }}/${{ env.IMAGE_OUTPUT_FILE }}"
         zip_file=$(find "${{ env.OUTPUT_DIR }}" -maxdepth 1 -type f -name "OrangeFox*.zip" -print -quit)
 
         if [ -f "$img_file" ]; then
@@ -209,8 +220,10 @@ jobs:
             ls -lh "$output_img"
         else
             echo "::error::Expected image not found: $img_file"
-            echo "Output directory contents:"
-            find "${{ env.OUTPUT_DIR }}" -maxdepth 2 -type f -printf '%p (%s bytes)\\n' | head -100
+            echo "Output directory contents (including symlinks):"
+            find "${{ env.OUTPUT_DIR }}" -maxdepth 4 \( -type f -o -type l \) -printf '%p (%s bytes)\\n' | head -200
+            echo "Image-related build variables:"
+            grep -E '^(BOARD_USES_RECOVERY_AS_BOOT|TARGET_NO_RECOVERY|BOARD_BUILD_SYSTEM_ROOT_IMAGE|BOARD_BOOTIMAGE_PARTITION_SIZE|BOARD_RECOVERYIMAGE_PARTITION_SIZE)[[:space:]]*[:?+]?=' "${{ inputs.DEVICE_PATH }}/BoardConfig.mk" || true
             exit 1
         fi
 
