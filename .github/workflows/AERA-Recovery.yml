@@ -155,15 +155,30 @@ jobs:
         fi
         echo "Skipped optional GSI keys inheritance for recovery build"
 
-    - name: Allow the stock Android version in the CTS platform files
+    - name: Allow the device Android version in the CTS platform files
       run: |
-        # build/make/core/tasks/cts.mk errors out when PLATFORM_VERSION or PLATFORM_VERSION_LAST_STABLE
-        # from the device tree is not listed in these files. The recovery does not use CTS at all.
-        cd "${{ env.AERA_ROOT }}/cts/tests/tests/os/assets"
+        set -euo pipefail
+        board_config="\${{ env.AERA_ROOT }}/\${{ inputs.DEVICE_PATH }}/BoardConfig.mk"
+        test -f "$board_config" || { echo "::error::BoardConfig.mk not found: $board_config"; exit 1; }
+
+        platform_version="$(sed -nE 's/^[[:space:]]*PLATFORM_VERSION[[:space:]]*:?=[[:space:]]*([^#[:space:]]+).*/\1/p' "$board_config" | tail -n1)"
+        stable_version="$(sed -nE 's/^[[:space:]]*PLATFORM_VERSION_LAST_STABLE[[:space:]]*:?=[[:space:]]*([^#[:space:]]+).*/\1/p' "$board_config" | tail -n1)"
+
+        if [ -z "$platform_version" ]; then
+            echo "::error::PLATFORM_VERSION is not defined in $board_config"
+            exit 1
+        fi
+        if [ -z "$stable_version" ] || [ "$stable_version" = '$(PLATFORM_VERSION)' ]; then
+            stable_version="$platform_version"
+        fi
+
+        cd "\${{ env.AERA_ROOT }}/cts/tests/tests/os/assets"
         for f in platform_versions.txt platform_releases.txt; do
-            grep -qx "13" "$f" || printf '\n13\n' >> "$f"
+            grep -Fqx "$platform_version" "$f" || printf '\n%s\n' "$platform_version" >> "$f"
+            grep -Fqx "$stable_version" "$f" || printf '\n%s\n' "$stable_version" >> "$f"
         done
-        tail -n 3 platform_versions.txt platform_releases.txt
+        echo "CTS platform entries added: PLATFORM_VERSION=$platform_version, PLATFORM_VERSION_LAST_STABLE=$stable_version"
+        tail -n 5 platform_versions.txt platform_releases.txt
 
     - name: Building Image
       run: |
