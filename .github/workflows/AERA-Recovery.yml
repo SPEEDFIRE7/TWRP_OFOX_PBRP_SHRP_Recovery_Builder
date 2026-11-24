@@ -158,7 +158,7 @@ jobs:
     - name: Allow the device Android version in the CTS platform files
       run: |
         set -euo pipefail
-        board_config="\${{ env.AERA_ROOT }}/\${{ inputs.DEVICE_PATH }}/BoardConfig.mk"
+        board_config="${{ env.AERA_ROOT }}/${{ inputs.DEVICE_PATH }}/BoardConfig.mk"
         test -f "$board_config" || { echo "::error::BoardConfig.mk not found: $board_config"; exit 1; }
 
         platform_version="$(sed -nE 's/^[[:space:]]*PLATFORM_VERSION[[:space:]]*:?=[[:space:]]*([^#[:space:]]+).*/\1/p' "$board_config" | tail -n1)"
@@ -172,7 +172,7 @@ jobs:
             stable_version="$platform_version"
         fi
 
-        cd "\${{ env.AERA_ROOT }}/cts/tests/tests/os/assets"
+        cd "${{ env.AERA_ROOT }}/cts/tests/tests/os/assets"
         for f in platform_versions.txt platform_releases.txt; do
             grep -Fqx "$platform_version" "$f" || printf '\n%s\n' "$platform_version" >> "$f"
             grep -Fqx "$stable_version" "$f" || printf '\n%s\n' "$stable_version" >> "$f"
