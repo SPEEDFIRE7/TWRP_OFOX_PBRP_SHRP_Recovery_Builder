@@ -140,22 +140,6 @@ jobs:
         cd "${{ inputs.DEVICE_PATH }}"
         echo "COMMIT_ID=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
-    - name: Apply graphics_drm.cpp fix
-      run: |
-        set -euo pipefail
-        # AERA's own graphics_drm.cpp is an MSM atomic backend. This device needs the legacy
-        # modeset and page flip path, so the tree ships a version of it that keeps AERA's
-        # gr_drm_* entry points (graphics_utils.cpp and the AERA UI link against them).
-        src="${{ env.AERA_ROOT }}/${{ inputs.DEVICE_PATH }}/patches/aera/graphics_drm.cpp"
-        target="${{ env.AERA_ROOT }}/bootable/recovery/minuitwrp/graphics_drm.cpp"
-        test -f "$src" || { echo "::error::$src not found, is the tree branch right?"; exit 1; }
-        test -f "$target" || { echo "::error::$target not found, AERA recovery layout changed"; exit 1; }
-        cp "$src" "$target"
-        for sym in open_drm gr_drm_present gr_drm_get_presented_surface gr_drm_get_scanout_buffers; do
-            grep -q "$sym" "$target" || { echo "::error::patched graphics_drm.cpp is missing $sym"; exit 1; }
-        done
-        echo "Patched graphics_drm.cpp: $(wc -l < "$target") lines"
-
     - name: Allow the stock Android version in the CTS platform files
       run: |
         # build/make/core/tasks/cts.mk errors out when PLATFORM_VERSION or PLATFORM_VERSION_LAST_STABLE
