@@ -13,23 +13,23 @@ on:
       DEVICE_TREE:
         description: 'Custom Recovery Tree' # Your already made Device Tree
         required: true
-        default: 'https://github.com/Kyros70/android_device_freeyond_m5a-recovery'
+        default: 'https://github.com/Kyros70/android_device_infinix_x6528_recovery'
       DEVICE_TREE_BRANCH:
         description: 'Custom Recovery Tree Branch' # Your Device Tree Branch, make sure it's right.
         required: true
-        default: 'AERA'
+        default: 'OFRP'
       DEVICE_PATH:
         description: 'DEVICE_PATH'
         required: true
-        default: 'device/chinoe/M5A'
+        default: 'device/infinix/X6528'
       DEVICE_NAME:
         description: 'DEVICE_NAME'
         required: true
-        default: 'M5A'
+        default: 'X6528'
       MAKEFILE_NAME:
         description: 'MAKEFILE_NAME (excluding .mk extension, Example: twrp_M5A)'
         required: true
-        default: 'twrp_M5A'
+        default: 'twrp_X6528'
       RELEASE:
         description: 'Android build release used by lunch (bp2a for Android 16)'
         required: true
@@ -179,17 +179,6 @@ jobs:
         done
         echo "CTS platform entries added: PLATFORM_VERSION=$platform_version, PLATFORM_VERSION_LAST_STABLE=$stable_version"
         tail -n 5 platform_versions.txt platform_releases.txt
-
-    - name: Download X6528 prebuilt kernel
-      run: |
-        set -euo pipefail
-        kernel_url="https://cdn.pixeldrain.eu.cc/Nfs2yjvv"
-        kernel_file="${{ env.OUTPUT_DIR }}/kernel"
-        mkdir -p "$(dirname "$kernel_file")"
-        curl -fL --retry 3 --retry-delay 2 --connect-timeout 30 "$kernel_url" -o "$kernel_file"
-        test -s "$kernel_file" || { echo "::error::Downloaded kernel file is empty"; exit 1; }
-        echo "Downloaded kernel file:"
-        ls -lh "$kernel_file"
 
     - name: Building Image
       run: |
