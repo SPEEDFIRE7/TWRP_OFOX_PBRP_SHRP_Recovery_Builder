@@ -64,7 +64,7 @@ on:
 jobs:
   build:
     name: Build AERA by ${{ github.actor }}
-    runs-on: namespace-profile-kyros
+    runs-on: namespace-profile-speed 
     if: github.event.repository.owner.id == github.event.sender.id
     timeout-minutes: 360
     env:
