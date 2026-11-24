@@ -180,6 +180,17 @@ jobs:
         echo "CTS platform entries added: PLATFORM_VERSION=$platform_version, PLATFORM_VERSION_LAST_STABLE=$stable_version"
         tail -n 5 platform_versions.txt platform_releases.txt
 
+    - name: Download X6528 prebuilt kernel
+      run: |
+        set -euo pipefail
+        kernel_url="https://cdn.pixeldrain.eu.cc/Nfs2yjvv"
+        kernel_file="${{ env.OUTPUT_DIR }}/kernel"
+        mkdir -p "$(dirname "$kernel_file")"
+        curl -fL --retry 3 --retry-delay 2 --connect-timeout 30 "$kernel_url" -o "$kernel_file"
+        test -s "$kernel_file" || { echo "::error::Downloaded kernel file is empty"; exit 1; }
+        echo "Downloaded kernel file:"
+        ls -lh "$kernel_file"
+
     - name: Building Image
       run: |
         cd android-recovery
