@@ -133,14 +133,12 @@ jobs:
         echo "AERA_VERSION_NAME=${version:-unknown}" >> $GITHUB_ENV
 
     - name: Clone Device Tree
-      env:
-        PAT: ${{ secrets.PAT }}
       run: |
-        test -n "$PAT" || { echo "PAT secret is empty"; exit 1; }
+        set -euo pipefail
         cd android-recovery
-        git -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$PAT" | base64 -w0)" clone ${{ inputs.DEVICE_TREE }} -b ${{ inputs.DEVICE_TREE_BRANCH }} ./${{ inputs.DEVICE_PATH }}
-        cd ${{ inputs.DEVICE_PATH }}
-        echo "COMMIT_ID=$(git rev-parse HEAD)" >> $GITHUB_ENV
+        git clone --depth=1 --single-branch --branch "${{ inputs.DEVICE_TREE_BRANCH }}" "${{ inputs.DEVICE_TREE }}" "./${{ inputs.DEVICE_PATH }}"
+        cd "${{ inputs.DEVICE_PATH }}"
+        echo "COMMIT_ID=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
     - name: Apply graphics_drm.cpp fix
       run: |
