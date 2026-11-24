@@ -140,6 +140,21 @@ jobs:
         cd "${{ inputs.DEVICE_PATH }}"
         echo "COMMIT_ID=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
+    - name: Skip unavailable GSI keys product makefile
+      run: |
+        set -euo pipefail
+        product_mk="${{ env.AERA_ROOT }}/${{ inputs.DEVICE_PATH }}/${{ inputs.MAKEFILE_NAME }}.mk"
+        test -f "$product_mk" || { echo "::error::Device product makefile not found: $product_mk"; exit 1; }
+        if grep -q 'product/gsi_keys.mk' "$product_mk"; then
+            sed -i '/product\/gsi_keys\.mk/d' "$product_mk"
+            sed -i '/Installs gsi keys into ramdisk/d' "$product_mk"
+        fi
+        if grep -q 'product/gsi_keys.mk' "$product_mk"; then
+            echo "::error::Failed to remove unavailable gsi_keys.mk inheritance"
+            exit 1
+        fi
+        echo "Skipped optional GSI keys inheritance for recovery build"
+
     - name: Allow the stock Android version in the CTS platform files
       run: |
         # build/make/core/tasks/cts.mk errors out when PLATFORM_VERSION or PLATFORM_VERSION_LAST_STABLE
